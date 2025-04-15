@@ -1,0 +1,13 @@
+tensorflow
+pandas
+numpy
+scikit-learn
+matplotlib
+opencv-python
+scikit-fuzzy
+torch
+torchvision
+flask
+werkzeug
+tqdm
+psutil
