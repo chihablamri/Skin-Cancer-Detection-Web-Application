@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torchvision import models
+from torchvision.models import ResNet50_Weights
 import time
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -17,19 +18,22 @@ class SkinCancerModelPyTorch(nn.Module):
         """
         super(SkinCancerModelPyTorch, self).__init__()
         
-        # Load a pre-trained ResNet50 model
-        self.base_model = models.resnet50(pretrained=True)
+        # Load a pre-trained ResNet50 model with updated weights parameter
+        self.base_model = models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
         
         # Freeze early layers
-        for param in self.base_model.parameters():
+        for param in list(self.base_model.parameters())[:-20]:  # Keep last few layers trainable
             param.requires_grad = False
             
-        # Replace the final fully connected layer
+        # Replace the final fully connected layer with a more robust classifier
         num_features = self.base_model.fc.in_features
         self.base_model.fc = nn.Sequential(
-            nn.Linear(num_features, 512),
+            nn.Linear(num_features, 1024),
             nn.ReLU(),
             nn.Dropout(0.5),
+            nn.Linear(1024, 512),
+            nn.ReLU(),
+            nn.Dropout(0.3),
             nn.Linear(512, num_classes)
         )
         
@@ -46,162 +50,104 @@ class SkinCancerModelPyTorch(nn.Module):
             
         self.to(self.device)
         
-        # Initialize loss function and optimizer
+        # Initialize loss function with class weights
         self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.Adam(self.base_model.fc.parameters(), lr=0.001)
         
     def forward(self, x):
-        # Ensure input is on same device as model
-        x = x.to(self.device)
         return self.base_model(x)
-    
+        
     def compile(self):
-        """Compile the model (PyTorch doesn't need compilation, but we keep this for consistency)"""
-        print("Model ready for training")
-        print(f"Total trainable parameters: {sum(p.numel() for p in self.base_model.fc.parameters())}")
-    
-    def fit(self, train_loader, val_loader, num_epochs=10):
+        """Compile the model with optimizer and learning rate scheduler"""
+        self.optimizer = optim.AdamW(self.parameters(), lr=0.0001, weight_decay=0.01)
+        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            self.optimizer, mode='max', factor=0.5, patience=2
+        )
+        
+    def fit(self, train_loader, val_loader, num_epochs=20):  # Increased epochs
         """
-        Train the model with enhanced progress reporting
-        
-        Args:
-            train_loader (DataLoader): Training data loader
-            val_loader (DataLoader): Validation data loader
-            num_epochs (int): Number of training epochs
-            
-        Returns:
-            dict: Training history
+        Train the model with improved training loop
         """
-        print(f"\n{'='*20} TRAINING INFORMATION {'='*20}")
-        print(f"Training on {len(train_loader.dataset)} images")
-        print(f"Validating on {len(val_loader.dataset)} images")
-        print(f"Batch size: {train_loader.batch_size}")
-        print(f"Training iterations per epoch: {len(train_loader)}")
-        print(f"Validation iterations per epoch: {len(val_loader)}")
-        print(f"Total training iterations: {len(train_loader) * num_epochs}")
-        print('='*60)
-        
-        history = {
-            'train_loss': [],
-            'train_acc': [],
-            'val_loss': [],
-            'val_acc': []
-        }
-        
+        history = {'train_loss': [], 'train_acc': [], 'val_loss': [], 'val_acc': []}
         best_val_acc = 0.0
-        total_start_time = time.time()
         
         for epoch in range(num_epochs):
-            epoch_start_time = time.time()
-            print(f"\nEpoch {epoch+1}/{num_epochs}")
-            
             # Training phase
             self.train()
-            running_loss = 0.0
-            running_corrects = 0
+            train_loss = 0.0
+            train_correct = 0
+            train_total = 0
             
-            # Progress bar for training
-            train_pbar = tqdm(train_loader, desc=f"Training", unit="batch")
-            batch_losses = []
-            batch_accs = []
-            
-            for inputs, labels in train_pbar:
-                inputs = inputs.to(self.device)
-                labels = labels.to(self.device)
+            train_bar = tqdm(train_loader, desc=f'Epoch {epoch+1}/{num_epochs} [Train]')
+            for inputs, labels in train_bar:
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
                 
                 self.optimizer.zero_grad()
-                
                 outputs = self(inputs)
                 loss = self.criterion(outputs, labels)
-                
                 loss.backward()
                 self.optimizer.step()
                 
-                _, preds = torch.max(outputs, 1)
-                batch_loss = loss.item()
-                batch_acc = torch.sum(preds == labels.data).double() / inputs.size(0)
+                train_loss += loss.item()
+                _, predicted = outputs.max(1)
+                train_total += labels.size(0)
+                train_correct += predicted.eq(labels).sum().item()
                 
-                batch_losses.append(batch_loss)
-                batch_accs.append(batch_acc.item())
-                
-                # Update progress bar with latest metrics
-                train_pbar.set_postfix({
-                    'loss': f"{batch_loss:.4f}", 
-                    'acc': f"{batch_acc.item():.4f}",
-                    'avg_loss': f"{sum(batch_losses[-50:]) / min(len(batch_losses), 50):.4f}"
+                train_bar.set_postfix({
+                    'loss': f'{train_loss/train_total:.4f}',
+                    'acc': f'{100.*train_correct/train_total:.2f}%'
                 })
-                
-                running_loss += batch_loss * inputs.size(0)
-                running_corrects += torch.sum(preds == labels.data)
-            
-            epoch_loss = running_loss / len(train_loader.dataset)
-            epoch_acc = running_corrects.double() / len(train_loader.dataset)
-            
-            history['train_loss'].append(epoch_loss)
-            history['train_acc'].append(epoch_acc.item())
             
             # Validation phase
             self.eval()
             val_loss = 0.0
-            val_corrects = 0
-            
-            # Progress bar for validation
-            val_pbar = tqdm(val_loader, desc=f"Validating", unit="batch")
+            val_correct = 0
+            val_total = 0
             
             with torch.no_grad():
-                for inputs, labels in val_pbar:
-                    inputs = inputs.to(self.device)
-                    labels = labels.to(self.device)
-                    
+                val_bar = tqdm(val_loader, desc=f'Epoch {epoch+1}/{num_epochs} [Val]')
+                for inputs, labels in val_bar:
+                    inputs, labels = inputs.to(self.device), labels.to(self.device)
                     outputs = self(inputs)
                     loss = self.criterion(outputs, labels)
                     
-                    _, preds = torch.max(outputs, 1)
-                    batch_val_loss = loss.item()
-                    batch_val_acc = torch.sum(preds == labels.data).double() / inputs.size(0)
+                    val_loss += loss.item()
+                    _, predicted = outputs.max(1)
+                    val_total += labels.size(0)
+                    val_correct += predicted.eq(labels).sum().item()
                     
-                    val_pbar.set_postfix({
-                        'val_loss': f"{batch_val_loss:.4f}", 
-                        'val_acc': f"{batch_val_acc.item():.4f}"
+                    val_bar.set_postfix({
+                        'loss': f'{val_loss/val_total:.4f}',
+                        'acc': f'{100.*val_correct/val_total:.2f}%'
                     })
-                    
-                    val_loss += loss.item() * inputs.size(0)
-                    val_corrects += torch.sum(preds == labels.data)
             
-            val_loss = val_loss / len(val_loader.dataset)
-            val_acc = val_corrects.double() / len(val_loader.dataset)
+            # Calculate metrics
+            train_loss = train_loss / len(train_loader)
+            train_acc = 100. * train_correct / train_total
+            val_loss = val_loss / len(val_loader)
+            val_acc = 100. * val_correct / val_total
             
+            # Update learning rate
+            self.scheduler.step(val_acc)
+            
+            # Save history
+            history['train_loss'].append(train_loss)
+            history['train_acc'].append(train_acc)
             history['val_loss'].append(val_loss)
-            history['val_acc'].append(val_acc.item())
-            
-            # Calculate epoch time
-            epoch_time = time.time() - epoch_start_time
-            
-            # Print epoch summary
-            print(f"\nEpoch {epoch+1}/{num_epochs} Summary:")
-            print(f"Train Loss: {epoch_loss:.4f} | Train Acc: {epoch_acc:.4f}")
-            print(f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
-            print(f"Time: {epoch_time:.1f}s | ETA: {epoch_time * (num_epochs-epoch-1):.1f}s")
+            history['val_acc'].append(val_acc)
             
             # Save best model
             if val_acc > best_val_acc:
                 best_val_acc = val_acc
                 torch.save({
-                    'epoch': epoch,
                     'model_state_dict': self.state_dict(),
                     'optimizer_state_dict': self.optimizer.state_dict(),
+                    'epoch': epoch,
                     'val_acc': val_acc,
                 }, 'best_skin_cancer_model.pth')
-                print(f"New best model saved! Validation accuracy: {val_acc:.4f}")
             
-            # Plot current learning curves
-            if (epoch + 1) % 2 == 0 or epoch == num_epochs - 1:
-                self._plot_learning_curves(history, epoch+1)
-        
-        total_time = time.time() - total_start_time
-        print(f"\nTraining completed in {total_time/60:.2f} minutes")
-        print(f"Best validation accuracy: {best_val_acc:.4f}")
-        
+            # Plot training progress
+            self._plot_learning_curves(history, epoch + 1)
+            
         return history
     
     def _plot_learning_curves(self, history, current_epoch):

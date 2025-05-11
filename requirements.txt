@@ -1,13 +1,24 @@
-tensorflow
-pandas
-numpy
-scikit-learn
-matplotlib
-opencv-python
-scikit-fuzzy
-torch
-torchvision
-flask
-werkzeug
-tqdm
-psutil
+# Deep learning framework and computer vision
+torch>=2.0.0          # PyTorch - Main deep learning framework
+torchvision>=0.15.0   # TorchVision - Computer vision utilities and pre-trained models
+opencv-python>=4.5.0  # OpenCV - Image processing and computer vision tasks
+
+# Data manipulation and analysis
+pandas>=1.5.0         # Pandas - Data manipulation and analysis
+numpy>=1.21.0         # NumPy - Numerical computing and array operations
+
+# Image processing
+Pillow>=9.0.0         # PIL - Python Imaging Library for image processing
+
+# Machine learning
+scikit-learn>=1.0.0   # Scikit-learn - Machine learning utilities (train_test_split, LabelEncoder)
+scikit-fuzzy>=0.4.2   # Scikit-fuzzy - Fuzzy logic toolkit for ML
+
+# Web application
+flask>=2.0.0          # Flask - Web framework for creating the application interface
+werkzeug>=2.0.0       # Werkzeug - WSGI utilities for Flask
+
+# Utilities
+matplotlib>=3.5.0     # Matplotlib - Plotting and visualization
+tqdm>=4.65.0         # TQDM - Progress bar for training loops
+psutil>=5.9.0        # PSUTIL - System and process utilities
