@@ -1,0 +1,102 @@
+I'll break down the key components of your project that you should highlight in your presentation:
+
+1. **Fuzzy Logic System** (Medical Recommendation Engine):
+```python
+# In app.py, around line 50-150
+def setup_fuzzy_system():
+    # This is the core of your fuzzy logic system
+    confidence = ctrl.Antecedent(np.arange(0, 101, 1), 'confidence')
+    risk_level = ctrl.Antecedent(np.arange(0, 11, 1), 'risk_level')
+    medical_attention = ctrl.Consequent(np.arange(0, 101, 1), 'medical_attention')
+    
+    # Membership functions and rules
+    # This is where the intelligent decision-making happens
+    rule1 = ctrl.Rule(confidence['high'] & risk_level['high'], medical_attention['urgent'])
+    rule2 = ctrl.Rule(confidence['high'] & risk_level['medium'], medical_attention['recommended'])
+    # ... more rules ...
+
+def get_fuzzy_recommendation(confidence_value, risk_type):
+    # This function uses the fuzzy system to make medical recommendations
+    # It's a key part of your presentation as it shows how the system
+    # converts model predictions into actionable medical advice
+```
+
+2. **Grad-CAM (Explainable AI)**:
+```python
+# In explainable_ai.py
+class GradCAM:
+    """
+    This is your explainable AI component
+    It shows WHY the model made its decisions
+    """
+    def __init__(self, model):
+        self.model = model
+        self.target_layer = self.model.base_model.layer4[-1].conv3
+        
+    def explain(self, image_path, target_class=None):
+        # This method generates the visual explanations
+        # It creates heatmaps showing which parts of the image
+        # the model focused on for its decision
+```
+
+3. **AI/Deep Learning Model**:
+```python
+# In app.py, around line 30-50
+class SkinLesionModel(nn.Module):
+    """
+    This is your core AI model
+    It's a ResNet50-based deep learning model
+    """
+    def __init__(self, num_classes=7):
+        super(SkinLesionModel, self).__init__()
+        self.base_model = models.resnet50(weights=None)
+        # Custom layers for skin cancer classification
+        self.base_model.fc = nn.Sequential(
+            nn.Linear(num_features, 1024),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(1024, 512),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(512, num_classes)
+        )
+```
+
+For your presentation, I recommend highlighting these key points:
+
+1. **Fuzzy Logic System**:
+   - Show how it combines model confidence with risk levels
+   - Demonstrate the three levels of medical recommendations:
+     - Self-monitoring
+     - Medical Consultation
+     - Urgent Medical Attention
+   - Explain how it makes the system more practical for medical use
+
+2. **Grad-CAM (Explainable AI)**:
+   - Show the heatmap visualizations
+   - Explain how it helps doctors understand the model's decisions
+   - Demonstrate the overlay images showing which parts of the lesion the model focused on
+   - Highlight how this increases trust in the AI system
+
+3. **AI Model**:
+   - Show the ResNet50 architecture
+   - Explain the custom layers you added
+   - Highlight the 7 different types of skin lesions it can classify
+   - Show the confidence scores and how they're used
+
+4. **Integration**:
+   - Show how these three components work together:
+     - AI model makes the initial classification
+     - Grad-CAM provides visual explanation
+     - Fuzzy logic system converts this into medical recommendations
+
+5. **Practical Application**:
+   - Show the web interface
+   - Demonstrate the complete workflow:
+     1. Image upload
+     2. AI classification
+     3. Visual explanation
+     4. Medical recommendation
+   - Highlight how it helps doctors make better decisions
+
+Would you like me to explain any of these components in more detail for your presentation?

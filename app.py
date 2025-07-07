@@ -1,28 +1,51 @@
+# app.py
+#
+# This is the main Flask web application for the skin cancer detection system.
+# It handles web requests, image uploads, model inference, Grad-CAM explainability, and fuzzy logic recommendations.
+#
+# The app integrates deep learning, explainable AI, and fuzzy logic for clinical decision support.
+
 import os
+import io
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
 from PIL import Image
-import numpy as np
-import cv2
-from flask import Flask, request, render_template, flash, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from werkzeug.utils import secure_filename
 from explainable_ai import GradCAM
+import numpy as np
+import cv2
 
-app = Flask(__name__)
+# Add import for fuzzy logic
+import skfuzzy as fuzz
+from skfuzzy import control as ctrl
+
+# -----------------------------
+# FLASK APP SETUP & CONFIGURATION
+# -----------------------------
+# Initialize Flask app, configure upload folder, secret key, and allowed file types
+app = Flask(__name__, 
+           template_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates'),
+           static_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static'))
 app.secret_key = 'skin_cancer_detection_app'
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
+app.config['UPLOAD_FOLDER'] = os.path.join(app.static_folder, 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg'}
 
 # Ensure upload directory exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# Device configuration
+# -----------------------------
+# DEVICE CONFIGURATION
+# -----------------------------
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"\nUsing device: {device}")
 
-# Define the model architecture
+# -----------------------------
+# MODEL DEFINITION & LOADING
+# -----------------------------
+# Define the model architecture (ResNet50-based)
 class SkinLesionModel(nn.Module):
     def __init__(self, num_classes=7):
         super(SkinLesionModel, self).__init__()
@@ -46,7 +69,7 @@ class SkinLesionModel(nn.Module):
         self.device = device
         return super().to(device)
 
-# Load the model
+# Load the trained model weights
 print("Loading model...")
 model = SkinLesionModel().to(device)
 checkpoint = torch.load('best_skin_cancer_model.pth', map_location=device)
@@ -54,10 +77,135 @@ model.load_state_dict(checkpoint['model_state_dict'])
 model.eval()
 print("Model loaded successfully!")
 
-# Initialize Grad-CAM
+# -----------------------------
+# EXPLAINABLE AI (Grad-CAM) SETUP
+# -----------------------------
+# Initialize Grad-CAM explainer for model interpretability
 explainer = GradCAM(model)
 
-# Class information
+# -----------------------------
+# FUZZY LOGIC SYSTEM SETUP
+# -----------------------------
+# Define fuzzy logic system for medical attention recommendation
+# Membership functions and rules are based on clinical logic
+
+def setup_fuzzy_system():
+    # Define input and output variables
+    confidence = ctrl.Antecedent(np.arange(0, 101, 1), 'confidence')
+    risk_level = ctrl.Antecedent(np.arange(0, 11, 1), 'risk_level')
+    medical_attention = ctrl.Consequent(np.arange(0, 101, 1), 'medical_attention')
+    
+    # Define membership functions for confidence
+    confidence['low'] = fuzz.trimf(confidence.universe, [0, 0, 50])
+    confidence['medium'] = fuzz.trimf(confidence.universe, [30, 60, 90])
+    confidence['high'] = fuzz.trimf(confidence.universe, [70, 100, 100])
+    
+    # Define membership functions for risk level (0-10 scale)
+    risk_level['low'] = fuzz.trimf(risk_level.universe, [0, 0, 4])
+    risk_level['medium'] = fuzz.trimf(risk_level.universe, [3, 5, 7])
+    risk_level['high'] = fuzz.trimf(risk_level.universe, [6, 10, 10])
+    
+    # Define membership functions for medical attention
+    medical_attention['unnecessary'] = fuzz.trimf(medical_attention.universe, [0, 0, 40])
+    medical_attention['recommended'] = fuzz.trimf(medical_attention.universe, [20, 50, 80])
+    medical_attention['urgent'] = fuzz.trimf(medical_attention.universe, [60, 100, 100])
+    
+    # Define rules
+    rule1 = ctrl.Rule(confidence['high'] & risk_level['high'], medical_attention['urgent'])
+    rule2 = ctrl.Rule(confidence['high'] & risk_level['medium'], medical_attention['recommended'])
+    rule3 = ctrl.Rule(confidence['high'] & risk_level['low'], medical_attention['unnecessary'])
+    rule4 = ctrl.Rule(confidence['medium'] & risk_level['high'], medical_attention['urgent'])
+    rule5 = ctrl.Rule(confidence['medium'] & risk_level['medium'], medical_attention['recommended'])
+    rule6 = ctrl.Rule(confidence['medium'] & risk_level['low'], medical_attention['recommended'])
+    rule7 = ctrl.Rule(confidence['low'] & risk_level['high'], medical_attention['recommended'])
+    rule8 = ctrl.Rule(confidence['low'] & risk_level['medium'], medical_attention['recommended'])
+    rule9 = ctrl.Rule(confidence['low'] & risk_level['low'], medical_attention['unnecessary'])
+    
+    # Create control system
+    medical_attention_ctrl = ctrl.ControlSystem([rule1, rule2, rule3, rule4, rule5, rule6, rule7, rule8, rule9])
+    
+    return ctrl.ControlSystemSimulation(medical_attention_ctrl)
+
+# Initialize fuzzy system
+fuzzy_system = setup_fuzzy_system()
+
+# Function to get fuzzy medical attention recommendation
+# Uses fuzzy logic to combine model confidence and risk level into actionable advice
+# Returns a dictionary with recommendation type, urgency, message, and score
+
+def get_fuzzy_recommendation(confidence_value, risk_type):
+    # Convert risk type to numerical value
+    risk_values = {
+        'Low': 2,
+        'Medium': 5, 
+        'High': 8
+    }
+    
+    risk_value = risk_values.get(risk_type, 5)  # Default to medium if unknown
+    
+    # Remove % sign and convert to float
+    if isinstance(confidence_value, str) and '%' in confidence_value:
+        confidence_value = float(confidence_value.replace('%', ''))
+    
+    # Input to fuzzy system
+    fuzzy_system.input['confidence'] = confidence_value
+    fuzzy_system.input['risk_level'] = risk_value
+    
+    try:
+        # Compute
+        fuzzy_system.compute()
+        attention_score = fuzzy_system.output['medical_attention']
+        
+        # Determine recommendation based on score
+        if attention_score < 30:
+            return {
+                'attention_type': 'Self-monitoring',
+                'urgency': 'Low',
+                'message': 'Regular self-monitoring is recommended.',
+                'score': attention_score
+            }
+        elif attention_score < 70:
+            return {
+                'attention_type': 'Medical Consultation',
+                'urgency': 'Medium',
+                'message': 'Consultation with a healthcare provider is recommended.',
+                'score': attention_score
+            }
+        else:
+            return {
+                'attention_type': 'Urgent Medical Attention',
+                'urgency': 'High',
+                'message': 'Prompt medical attention is strongly advised.',
+                'score': attention_score
+            }
+    except:
+        # Fallback if fuzzy computation fails
+        if risk_type == 'High':
+            return {
+                'attention_type': 'Medical Attention',
+                'urgency': 'High',
+                'message': 'Due to high risk classification, medical attention is advised.',
+                'score': 80
+            }
+        elif risk_type == 'Medium':
+            return {
+                'attention_type': 'Medical Consultation',
+                'urgency': 'Medium',
+                'message': 'Regular monitoring by a healthcare provider is recommended.',
+                'score': 50
+            }
+        else:
+            return {
+                'attention_type': 'Self-monitoring',
+                'urgency': 'Low',
+                'message': 'Regular self-monitoring is sufficient.',
+                'score': 20
+            }
+
+# -----------------------------
+# CLASS MAPPING & LABEL INFO
+# -----------------------------
+# Maps class indices to human-readable names, risk, features, and explanations
 CLASS_MAPPING = {
     0: {
         'code': 'akiec',
@@ -117,133 +265,106 @@ CLASS_MAPPING = {
     }
 }
 
+# -----------------------------
+# IMAGE PROCESSING & PREDICTION
+# -----------------------------
+# allowed_file: Checks if uploaded file has an allowed extension
+# process_image: Handles image preprocessing, model inference, Grad-CAM, and fuzzy logic recommendation
+# Returns a dictionary with all prediction and explanation info for the UI
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
 def process_image(image_path):
     """Process image and return prediction with explanation"""
+    # Load and preprocess image
+    image = Image.open(image_path).convert('RGB')
+    transform = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
+    image_tensor = transform(image).unsqueeze(0).to(device)
+    
+    # Get prediction
+    with torch.no_grad():
+        outputs = model(image_tensor)
+        probabilities = torch.softmax(outputs, dim=1)
+        pred_prob, pred_class = torch.max(probabilities, 1)
+    
+    # Get class information
+    class_info = CLASS_MAPPING[pred_class.item()]
+    
+    # Get top 3 predictions
+    top_probs, top_indices = torch.topk(probabilities[0], 3)
+    top_predictions = []
+    for prob, idx in zip(top_probs, top_indices):
+        top_predictions.append({
+            'name': CLASS_MAPPING[idx.item()]['name'],
+            'probability': f"{prob.item()*100:.2f}%"
+        })
+    
+    # Generate analysis area text based on features
+    analysis_area = f"The model has analyzed the following key features:\n"
+    analysis_area += f"• {class_info['features']}\n"
+    analysis_area += f"• The lesion shows characteristics typical of {class_info['name']}\n"
+    if 'High' in class_info['risk']:
+        analysis_area += "• Urgent medical attention is recommended"
+    elif 'Medium' in class_info['risk']:
+        analysis_area += "• Regular medical monitoring is advised"
+    else:
+        analysis_area += "• Regular self-monitoring is recommended"
+    
+    # Get Grad-CAM explanation
     try:
-        # Debug information
-        print(f"\nProcessing image: {image_path}")
-        print(f"File exists: {os.path.exists(image_path)}")
-        if os.path.exists(image_path):
-            print(f"File size: {os.path.getsize(image_path)} bytes")
+        grad_cam_result = explainer.explain(image_path)
+        # Fix the path to match the correct directory structure
+        heatmap_filename = os.path.basename(grad_cam_result['heatmap_path'])
+        overlay_filename = os.path.basename(grad_cam_result['overlay_path'])
         
-        # Verify file exists
-        if not os.path.exists(image_path):
-            raise FileNotFoundError(f"Image file not found: {image_path}")
-            
-        # Verify file is not empty
-        if os.path.getsize(image_path) == 0:
-            raise ValueError("Image file is empty")
-            
-        # Try to open and verify image
-        try:
-            # First try to open with PIL
-            image = Image.open(image_path)
-            print(f"Image format: {image.format}")
-            print(f"Image size: {image.size}")
-            print(f"Image mode: {image.mode}")
-            
-            # Convert to RGB if needed
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-            
-            # Force image loading to verify it's valid
-            image.verify()
-            
-            # Reopen the image after verification
-            image = Image.open(image_path).convert('RGB')
-            
-        except Exception as e:
-            print(f"Error opening image: {str(e)}")
-            # Try alternative method using OpenCV
-            try:
-                img = cv2.imread(image_path)
-                if img is None:
-                    raise ValueError("OpenCV could not read the image")
-                # Convert BGR to RGB
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                image = Image.fromarray(img)
-            except Exception as cv2_error:
-                raise ValueError(f"Both PIL and OpenCV failed to read the image. PIL error: {str(e)}, OpenCV error: {str(cv2_error)}")
-        
-        # Image preprocessing
-        transform = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        ])
-        image_tensor = transform(image).unsqueeze(0).to(device)
-        
-        # Get prediction
-        with torch.no_grad():
-            outputs = model(image_tensor)
-            probabilities = torch.softmax(outputs, dim=1)
-            pred_prob, pred_class = torch.max(probabilities, 1)
-        
-        # Get class information
-        class_info = CLASS_MAPPING[pred_class.item()]
-        
-        # Get top 3 predictions
-        top_probs, top_indices = torch.topk(probabilities[0], 3)
-        top_predictions = []
-        for prob, idx in zip(top_probs, top_indices):
-            top_predictions.append({
-                'name': CLASS_MAPPING[idx.item()]['name'],
-                'probability': f"{prob.item()*100:.2f}%"
-            })
-        
-        # Generate analysis area text based on features
-        analysis_area = f"The model has analyzed the following key features:\n"
-        analysis_area += f"• {class_info['features']}\n"
-        analysis_area += f"• The lesion shows characteristics typical of {class_info['name']}\n"
-        if 'High' in class_info['risk']:
-            analysis_area += "• Urgent medical attention is recommended"
-        elif 'Medium' in class_info['risk']:
-            analysis_area += "• Regular medical monitoring is advised"
-        else:
-            analysis_area += "• Regular self-monitoring is recommended"
-        
-        # Get Grad-CAM explanation
-        try:
-            grad_cam_result = explainer.explain(image_path)
-            # Fix the path to match the correct directory structure
-            heatmap_filename = os.path.basename(grad_cam_result['heatmap_path'])
-            overlay_filename = os.path.basename(grad_cam_result['overlay_path'])
-            
-            explanation = {
-                'heatmap_path': heatmap_filename,
-                'overlay_path': overlay_filename,
-                'region_explanation': analysis_area,
-                'text': class_info['explanation']
-            }
-        except Exception as e:
-            print(f"Grad-CAM generation failed: {str(e)}")
-            explanation = {
-                'heatmap_path': None,
-                'overlay_path': None,
-                'region_explanation': analysis_area,
-                'text': class_info['explanation']
-            }
-        
-        # Prepare confidence text
-        confidence_value = float(pred_prob.item() * 100)
-        
-        return {
-            'code': class_info['code'],
-            'name': class_info['name'],
-            'probability': f"{confidence_value:.2f}%",
-            'risk': class_info['risk'].split()[0],
-            'description': class_info['description'],
-            'feature_explanation': class_info['features'],
-            'explanation': explanation,
-            'top_predictions': top_predictions
+        explanation = {
+            'heatmap_path': heatmap_filename,
+            'overlay_path': overlay_filename,
+            'region_explanation': analysis_area,
+            'text': class_info['explanation']
         }
-        
     except Exception as e:
-        print(f"Error in process_image: {str(e)}")
-        raise Exception(f"Failed to process image: {str(e)}")
+        print(f"Grad-CAM generation failed: {str(e)}")
+        explanation = {
+            'heatmap_path': None,
+            'overlay_path': None,
+            'region_explanation': analysis_area,
+            'text': class_info['explanation']
+        }
+    
+    # Prepare confidence text and value
+    confidence_value = float(pred_prob.item() * 100)
+    confidence_text = f"{confidence_value:.2f}%"
+    
+    # Get fuzzy logic recommendation
+    risk_level = class_info['risk'].split()[0]  # Get "High", "Medium", or "Low"
+    fuzzy_recommendation = get_fuzzy_recommendation(confidence_value, risk_level)
+    
+    return {
+        'code': class_info['code'],
+        'name': class_info['name'],
+        'probability': confidence_text,
+        'probability_value': confidence_value,
+        'risk': risk_level,
+        'description': class_info['description'],
+        'feature_explanation': class_info['features'],
+        'explanation': explanation,
+        'top_predictions': top_predictions,
+        'fuzzy_recommendation': fuzzy_recommendation
+    }
+
+# -----------------------------
+# FLASK ROUTES
+# -----------------------------
+# '/' route: Handles GET and POST requests for main page
+# - GET: Shows upload form
+# - POST: Processes uploaded image, runs prediction, and renders results
+# '/about' route: Shows about page
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -261,42 +382,13 @@ def index():
             return redirect(request.url)
             
         if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            
             try:
-                # Read the file content first
-                file_content = file.read()
-                if len(file_content) < 1000:  # Basic size check
-                    raise ValueError("File appears to be too small or corrupted")
-                
-                # Reset file pointer
-                file.seek(0)
-                
-                filename = secure_filename(file.filename)
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                
-                # Ensure the upload directory exists
-                os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-                
-                # Save the file with explicit binary mode
-                with open(filepath, 'wb') as f:
-                    f.write(file_content)
-                
-                print(f"\nSaved file to: {filepath}")
-                print(f"File size after save: {os.path.getsize(filepath)} bytes")
-                
-                # Verify the file was saved correctly
-                if not os.path.exists(filepath):
-                    raise Exception("Failed to save uploaded file")
-                
-                # Try to open the image immediately after saving
-                try:
-                    test_image = Image.open(filepath)
-                    test_image.verify()  # Verify it's a valid image
-                    print(f"Successfully verified image: {filename}")
-                except Exception as e:
-                    raise ValueError(f"Saved file is not a valid image: {str(e)}")
-                
                 prediction = process_image(filepath)
-                prediction['image'] = filename
+                prediction['image'] = filename  # Add filename for display
                 
                 # Move Grad-CAM generated files to static/uploads if they exist
                 if prediction['explanation']['heatmap_path']:
@@ -313,12 +405,6 @@ def index():
                 
             except Exception as e:
                 flash(f'Error processing image: {str(e)}')
-                # Clean up the file if it exists
-                if filename and os.path.exists(filepath):
-                    try:
-                        os.remove(filepath)
-                    except:
-                        pass
                 return redirect(request.url)
         else:
             flash('Allowed file types are png, jpg, jpeg')
@@ -330,52 +416,7 @@ def index():
 
 @app.route('/about')
 def about():
-    """Render the about page"""
-    class_mapping = {
-        0: {
-            'name': 'Melanoma',
-            'code': 'MEL',
-            'risk': 'High',
-            'description': 'The most dangerous form of skin cancer, can spread to other organs.'
-        },
-        1: {
-            'name': 'Melanocytic nevus',
-            'code': 'NV',
-            'risk': 'Low',
-            'description': 'Common mole, usually benign.'
-        },
-        2: {
-            'name': 'Basal cell carcinoma',
-            'code': 'BCC',
-            'risk': 'Medium',
-            'description': 'Most common type of skin cancer, rarely spreads.'
-        },
-        3: {
-            'name': 'Actinic keratosis / Bowen\'s disease',
-            'code': 'AKIEC',
-            'risk': 'Medium',
-            'description': 'Precancerous skin condition that can develop into squamous cell carcinoma.'
-        },
-        4: {
-            'name': 'Benign keratosis',
-            'code': 'BKL',
-            'risk': 'Low',
-            'description': 'Non-cancerous skin growths including seborrheic keratosis and solar lentigo.'
-        },
-        5: {
-            'name': 'Dermatofibroma',
-            'code': 'DF',
-            'risk': 'Low',
-            'description': 'Benign skin tumor, usually appears as a hard, raised growth.'
-        },
-        6: {
-            'name': 'Vascular lesion',
-            'code': 'VASC',
-            'risk': 'Low',
-            'description': 'Blood vessel abnormalities including angiomas and pyogenic granulomas.'
-        }
-    }
-    return render_template('about.html', class_mapping=class_mapping)
+    return render_template('about.html', class_mapping=CLASS_MAPPING)
 
 if __name__ == '__main__':
     app.run(debug=True)

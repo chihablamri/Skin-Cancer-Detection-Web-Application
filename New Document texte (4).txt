@@ -1,0 +1,40 @@
+Based on the information provided, you need to complete your performance evaluation table with sensitivity and specificity values. Since I don't have access to your actual model performance data, I can provide guidance on how to calculate or estimate these values:
+
+## Completing Your Performance Table
+
+### Sensitivity & Specificity Calculation
+
+1. **From Confusion Matrix**:
+
+   * Sensitivity (Recall) = TP / (TP + FN)
+   * Specificity = TN / (TN + FP)
+
+2. **For Multi-class Problems**:
+
+   * Calculate per class (one-vs-all approach)
+   * Average the values (macro-average)
+
+### Estimated Values
+
+If you don't have the exact numbers, here's a reasonable estimation based on the provided accuracies:
+
+| Model                      | Accuracy (%) | Sensitivity (%) | Specificity (%) | Explainability          |
+| -------------------------- | ------------ | --------------- | --------------- | ----------------------- |
+| EfficientNetB3 + Attention | 82.15        | \~81.3          | \~83.0          | Attention Maps          |
+| Hybrid CNN + Rules         | 79.73        | \~77.9          | \~81.5          | Grad-CAM + Rule Mapping |
+| CNN + Grad-CAM             | 75.45        | \~74.2          | \~76.8          | Grad-CAM                |
+| Fuzzy Logic + DL           | 72.84        | \~71.5          | \~74.3          | Fuzzy Rules             |
+
+These estimates assume:
+
+* Sensitivity is typically slightly lower than accuracy for skin lesion models
+* Specificity is typically slightly higher than accuracy
+* Values follow the same relative performance pattern as accuracy
+
+To get more accurate values, you would need to:
+
+1. Check your model evaluation outputs for classification reports
+2. Calculate from saved confusion matrices
+3. Run a final evaluation pass on your test dataset
+
+Would you like me to explain how to calculate these values from a confusion matrix if you have that data available?

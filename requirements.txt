@@ -1,10 +1,17 @@
 # Deep learning framework and computer vision
-torch>=2.0.0          # PyTorch - Main deep learning framework
-torchvision>=0.15.0   # TorchVision - Computer vision utilities and pre-trained models
-opencv-python>=4.5.0  # OpenCV - Image processing and computer vision tasks
+torch>=2.0.0
+torchvision>=0.15.0
+numpy>=1.21.0
+scikit-learn>=1.0.0
+efficientnet-pytorch==0.7.1
+pytorch-gradcam>=0.2.1
+scikit-fuzzy>=0.4.2
+matplotlib>=3.4.0
+pandas>=1.3.0
+Pillow>=8.3.0
+tqdm>=4.62.0
 
 # Data manipulation and analysis
-pandas>=1.5.0         # Pandas - Data manipulation and analysis
 numpy>=1.21.0         # NumPy - Numerical computing and array operations
 
 # Image processing
@@ -22,3 +29,7 @@ werkzeug>=2.0.0       # Werkzeug - WSGI utilities for Flask
 matplotlib>=3.5.0     # Matplotlib - Plotting and visualization
 tqdm>=4.65.0         # TQDM - Progress bar for training loops
 psutil>=5.9.0        # PSUTIL - System and process utilities
+
+# Added from the code block
+seaborn>=0.11.0
+opencv-python>=4.5.0

@@ -1,3 +1,8 @@
+# main_pytorch.py
+#
+# This script is responsible for training, validating, and evaluating the PyTorch-based skin cancer detection model.
+# It includes system checks, dataset validation, model training, saving, and performance reporting.
+
 import os
 import torch
 import numpy as np
@@ -11,8 +16,11 @@ import platform
 import psutil
 import multiprocessing
 
+# -----------------------------
+# SYSTEM INFORMATION FUNCTIONS
+# -----------------------------
 def print_system_info():
-    """Print detailed system information"""
+    """Print detailed system information including OS, CPU, RAM, and GPU."""
     print("\n" + "="*50)
     print("SYSTEM INFORMATION")
     print("="*50)
@@ -49,10 +57,13 @@ def print_system_info():
     
     print("="*50 + "\n")
 
+# -----------------------------
+# DATASET VALIDATION FUNCTIONS
+# -----------------------------
 def check_dataset(data_dir):
     """
-    Check dataset for completeness and print detailed info
-    
+    Check dataset for completeness and print detailed info.
+    Verifies the presence of image directories and metadata, counts images, and checks metadata format.
     Returns:
         tuple: (is_valid, message)
     """
@@ -120,10 +131,13 @@ def check_dataset(data_dir):
     print("="*50 + "\n")
     return True, "Dataset validation successful"
 
+# -----------------------------
+# MODEL TRAINING FUNCTION
+# -----------------------------
 def train_model(data_dir, metadata_path, num_epochs=10, batch_size=32):
     """
-    Train the skin cancer detection model with PyTorch
-    
+    Train the skin cancer detection model with PyTorch.
+    Handles data loading, preprocessing, model initialization, training, saving, and evaluation.
     Args:
         data_dir (str): Directory containing the image data
         metadata_path (str): Path to the metadata CSV file

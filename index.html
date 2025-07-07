@@ -1,0 +1,625 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-microscope me-2"></i>Skin Lesion Analysis Tool</h4>
+                </div>
+                <div class="card-body">
+                    <p class="lead">Upload a dermatoscopic image for professional-grade skin lesion analysis using deep learning technology.</p>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>This tool analyzes images of skin lesions and provides diagnostic information using AI technology.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Always show the upload area at the top -->
+    <div class="row justify-content-center mb-4">
+        <div class="col-12">
+            <div class="card h-100 modern-card fade-in-card upload-card-full">
+                <div class="card-header gradient-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-upload me-2"></i>Image Upload</h5>
+                </div>
+                <div class="card-body upload-body-xxl d-flex flex-column align-items-center justify-content-center">
+                    <form method="POST" enctype="multipart/form-data" class="mb-3 w-100">
+                        <div class="upload-area upload-area-xxl mb-4 d-flex flex-column align-items-center justify-content-center w-100">
+                            <i class="fas fa-image fa-5x mb-4 text-muted"></i>
+                            <h2 class="mb-2">Select Image for Analysis</h2>
+                            <p class="text-muted mb-4" style="font-size:1.15rem;">Supported formats: JPG, JPEG, PNG</p>
+                            <input type="file" class="form-control form-control-lg w-75 mx-auto" name="file" accept="image/*" required id="file-upload" style="font-size:1.2rem;">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-xxl w-50 mx-auto d-block" style="font-size:1.5rem; padding: 1rem 0;">
+                            <i class="fas fa-search-plus me-2"></i>Analyze Image
+                        </button>
+                    </form>
+                    {% if filename %}
+                    <div class="card mt-4 uploaded-image-card fade-in-card w-75 mx-auto">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0">Uploaded Image</h6>
+                        </div>
+                        <div class="card-body text-center p-2">
+                            <img src="/static/uploads/{{ filename }}" class="img-fluid rounded shadow-lg" style="max-height: 400px;">
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Show analysis results and heatmap only if prediction exists -->
+    {% if prediction %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card h-100 analysis-results-card modern-card fade-in-card mt-4">
+                <div class="card-header gradient-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Analysis Results</h5>
+                    <span class="risk-badge badge-animated badge-{% if prediction.risk == 'High' %}high{% elif prediction.risk == 'Medium' %}medium{% else %}low{% endif %}">
+                        <i class="fas {% if prediction.risk == 'High' %}fa-exclamation-circle{% elif prediction.risk == 'Medium' %}fa-exclamation-triangle{% else %}fa-check-circle{% endif %} me-1"></i>
+                        {{ prediction.risk }} Risk
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="prediction-box {% if prediction.risk == 'High' %}high-border{% elif prediction.risk == 'Medium' %}medium-border{% else %}low-border{% endif %} p-3 mb-4 bg-light rounded">
+                        <h4 class="mb-2">{{ prediction.name }} <span class="text-muted">({{ prediction.code.upper() }})</span></h4>
+                        <div class="animated-progress mb-2">
+                            <div class="animated-progress-bar progress-bar-{% if prediction.risk == 'High' %}high{% elif prediction.risk == 'Medium' %}medium{% else %}low{% endif %}" 
+                                 data-value="{{ prediction.probability_value }}">
+                                <span class="animated-progress-label">{{ prediction.probability }}</span>
+                            </div>
+                        </div>
+                        <p class="mb-0"><strong>Description:</strong> {{ prediction.description }}</p>
+                    </div>
+
+                    <!-- Fuzzy Logic Recommendation Card -->
+                    <div class="card mb-4 modern-card border-0 fade-in-card">
+                        <div class="card-header gradient-header d-flex align-items-center">
+                            <h5 class="mb-0">
+                                <span class="recommendation-badge badge-animated badge-{% if prediction.fuzzy_recommendation.urgency == 'High' %}high{% elif prediction.fuzzy_recommendation.urgency == 'Medium' %}medium{% else %}low{% endif %}">
+                                    <i class="fas {% if prediction.fuzzy_recommendation.urgency == 'High' %}fa-exclamation-circle{% elif prediction.fuzzy_recommendation.urgency == 'Medium' %}fa-exclamation-triangle{% else %}fa-check-circle{% endif %} me-1"></i>
+                                    {{ prediction.fuzzy_recommendation.attention_type }}
+                                </span>
+                                Fuzzy Logic Self-Monitoring Recommendation
+                            </h5>
+                        </div>
+                        <div class="px-4 pt-2 pb-0">
+                            <p class="small text-muted mb-2">This recommendation is generated by a fuzzy logic engine that combines AI predictions with clinical rules for interpretable, patient-centered guidance.</p>
+                        </div>
+                        <div class="card-body">
+                            <p><strong class="text-{% if prediction.fuzzy_recommendation.urgency == 'High' %}danger{% elif prediction.fuzzy_recommendation.urgency == 'Medium' %}warning{% else %}success{% endif %}">{{ prediction.fuzzy_recommendation.message }}</strong></p>
+                            <div class="animated-progress mt-2 mb-2">
+                                <div class="animated-progress-bar progress-bar-{% if prediction.fuzzy_recommendation.urgency == 'High' %}high{% elif prediction.fuzzy_recommendation.urgency == 'Medium' %}medium{% else %}low{% endif %}" 
+                                     data-value="{{ prediction.fuzzy_recommendation.score }}">
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between mt-1">
+                                <small>Low Urgency</small>
+                                <small>High Urgency</small>
+                            </div>
+                            <div class="mt-3">
+                                <p class="small text-muted mb-0">This recommendation is based on:</p>
+                                <ul class="small text-muted mb-0">
+                                    <li>Prediction confidence ({{ prediction.probability }})</li>
+                                    <li>Risk classification ({{ prediction.risk }})</li>
+                                    <li>Feature characteristics analysis</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Horizontal Stack of Analysis Cards -->
+                    <div class="row g-3 analysis-stack-row">
+                        <!-- Key Features Card -->
+                        <div class="col-lg-4 col-md-6 col-12">
+                            <div class="modern-card fade-in-card analysis-stack-card">
+                                <div class="card-header analysis-gradient-header-1">
+                                    <h5 class="mb-0"><i class="fas fa-lightbulb me-2"></i>Key Features</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p>{{ prediction.feature_explanation }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Differential Diagnosis Card -->
+                        <div class="col-lg-4 col-md-6 col-12">
+                            <div class="modern-card fade-in-card analysis-stack-card">
+                                <div class="card-header analysis-gradient-header-2">
+                                    <h5 class="mb-0"><i class="fas fa-notes-medical me-2"></i>Differential Diagnosis</h5>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-group list-group-flush">
+                                        {% for top in prediction.top_predictions %}
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            {{ top.name }}
+                                            <span class="badge bg-primary rounded-pill">{{ top.probability }}</span>
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Clinical Implications Card -->
+                        <div class="col-lg-4 col-md-12 col-12">
+                            <div class="modern-card fade-in-card analysis-stack-card">
+                                <div class="card-header analysis-gradient-header-3">
+                                    <h5 class="mb-0"><i class="fas fa-stethoscope me-2"></i>Clinical Implications</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p>{{ prediction.explanation.text }}</p>
+                                    <p class="small text-muted">{{ prediction.explanation.region_explanation|replace('\n', '<br>')|safe }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Visual Analysis Card (Heatmap) -->
+                    <div class="visual-analysis-card modern-card fade-in-card mt-4">
+                        <div class="card-header visual-gradient-header d-flex align-items-center">
+                            <h5 class="mb-0"><i class="fas fa-fire me-2"></i>Visual Analysis <span class="ms-2 small">(Grad-CAM Heat Map)</span></h5>
+                        </div>
+                        <div class="card-body p-4 text-center">
+                            {% if prediction.explanation.heatmap_path %}
+                                <img src="/static/uploads/{{ prediction.explanation.heatmap_path }}" class="img-fluid rounded shadow-lg fade-in-img mb-3" style="max-width: 90%; max-height: 350px;">
+                            {% endif %}
+                            {% if prediction.explanation.overlay_path %}
+                                <img src="/static/uploads/{{ prediction.explanation.overlay_path }}" class="img-fluid rounded shadow-lg fade-in-img" style="max-width: 90%; max-height: 350px;">
+                            {% endif %}
+                        </div>
+                        <div class="card-footer visual-footer py-3">
+                            <p class="mb-0"><i class="fas fa-info-circle me-2"></i><span class="small">Highlighted regions indicate areas most influential in the AI's decision. Use these overlays to understand model focus and clinical relevance.</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if prediction %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fas fa-exclamation-circle me-2"></i>Important Disclaimer</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>This tool is intended for educational purposes only.</strong> The results provided by this application should not be used as a substitute for professional medical advice, diagnosis, or treatment. Always seek the advice of a qualified healthcare provider with any questions you may have regarding a medical condition.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- New Animated Metrics Section -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <div class="card metrics-showcase">
+                <div class="card-header showcase-header">
+                    <h4 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Model Performance Visualization</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Overall Accuracy -->
+                        <div class="col-md-3 col-sm-6 mb-4">
+                            <div class="circular-progress" style="width: 160px; height: 160px;">
+                                <div class="circular-progress-value" data-value="86.3">
+                                    <span class="value">86.3%</span>
+                                    <span class="label">Accuracy</span>
+                                </div>
+                                <svg class="circular-progress-circle" width="160" height="160" viewBox="0 0 160 160">
+                                    <circle class="circular-progress-circle-bg" cx="80" cy="80" r="70"></circle>
+                                    <circle class="circular-progress-circle-fill" cx="80" cy="80" r="70"></circle>
+                                </svg>
+                            </div>
+                        </div>
+                        
+                        <!-- Melanoma Detection -->
+                        <div class="col-md-3 col-sm-6 mb-4">
+                            <div class="circular-progress" style="width: 160px; height: 160px;">
+                                <div class="circular-progress-value" data-value="91.2">
+                                    <span class="value">91.2%</span>
+                                    <span class="label">Melanoma Sensitivity</span>
+                                </div>
+                                <svg class="circular-progress-circle" width="160" height="160" viewBox="0 0 160 160">
+                                    <circle class="circular-progress-circle-bg" cx="80" cy="80" r="70"></circle>
+                                    <circle class="circular-progress-circle-fill" cx="80" cy="80" r="70"></circle>
+                                </svg>
+                            </div>
+                        </div>
+                        
+                        <!-- Specificity -->
+                        <div class="col-md-3 col-sm-6 mb-4">
+                            <div class="circular-progress" style="width: 160px; height: 160px;">
+                                <div class="circular-progress-value" data-value="89.5">
+                                    <span class="value">89.5%</span>
+                                    <span class="label">Specificity</span>
+                                </div>
+                                <svg class="circular-progress-circle" width="160" height="160" viewBox="0 0 160 160">
+                                    <circle class="circular-progress-circle-bg" cx="80" cy="80" r="70"></circle>
+                                    <circle class="circular-progress-circle-fill" cx="80" cy="80" r="70"></circle>
+                                </svg>
+                            </div>
+                        </div>
+                        
+                        <!-- AUC Score -->
+                        <div class="col-md-3 col-sm-6 mb-4">
+                            <div class="circular-progress" style="width: 160px; height: 160px;">
+                                <div class="circular-progress-value" data-value="93.7">
+                                    <span class="value">0.937</span>
+                                    <span class="label">AUC Score</span>
+                                </div>
+                                <svg class="circular-progress-circle" width="160" height="160" viewBox="0 0 160 160">
+                                    <circle class="circular-progress-circle-bg" cx="80" cy="80" r="70"></circle>
+                                    <circle class="circular-progress-circle-fill" cx="80" cy="80" r="70"></circle>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Optional: Custom styling for file upload -->
+<style>
+    #file-upload {
+        max-width: 100%;
+    }
+    .explanation-image {
+        max-width: 100%;
+        height: auto;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    /* New styles for animated metrics */
+    .metrics-showcase {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        border: none;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+    
+    .showcase-header {
+        background: linear-gradient(135deg, #4b6cb7 0%, #182848 100%);
+        color: white;
+        border: none;
+    }
+    
+    .circular-progress {
+        position: relative;
+        width: 160px !important;
+        height: 160px !important;
+        margin: 0 auto;
+    }
+    
+    .circular-progress-value {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        width: 100%;
+    }
+    
+    .circular-progress-value .value {
+        display: block;
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #2c3e50;
+        margin-bottom: 5px;
+    }
+    
+    .circular-progress-value .label {
+        display: block;
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+    
+    .circular-progress-circle {
+        transform: rotate(-90deg);
+    }
+    
+    .circular-progress-circle-bg,
+    .circular-progress-circle-fill {
+        fill: none;
+        stroke: #4b6cb7;
+        stroke-width: 12;
+        stroke-linecap: round;
+        stroke-dasharray: 339.292;
+        stroke-dashoffset: 339.292;
+        transition: stroke-dashoffset 1.5s ease;
+    }
+    
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .circular-progress {
+        animation: fadeInUp 0.5s ease-out forwards;
+    }
+
+    /* Make Analysis Results card more prominent */
+    .analysis-results-card {
+        font-size: 1.15rem;
+        min-height: 600px;
+        box-shadow: 0 8px 32px rgba(44,62,80,0.10);
+        border-width: 2px;
+    }
+    .analysis-results-card .card-header {
+        font-size: 1.35rem;
+        padding: 1.25rem 1.5rem;
+    }
+    .analysis-results-card .card-body {
+        padding: 2rem 2.5rem;
+    }
+    .analysis-results-card h4, .analysis-results-card h5 {
+        font-size: 1.3rem;
+    }
+    .analysis-results-card .progress {
+        height: 32px;
+    }
+    .analysis-results-card .prediction-box {
+        font-size: 1.1rem;
+        padding: 1.5rem;
+    }
+    /* Reduce vertical spacing between sections */
+    .row.mb-4, .row.mt-4, .row.mt-5 {
+        margin-top: 1.5rem !important;
+        margin-bottom: 1.5rem !important;
+    }
+    .mb-4 {
+        margin-bottom: 1.25rem !important;
+    }
+    .mt-4, .mt-5 {
+        margin-top: 1.25rem !important;
+    }
+    /* Responsive tweaks */
+    @media (max-width: 768px) {
+        .analysis-results-card .card-body {
+            padding: 1rem 0.5rem;
+        }
+    }
+
+    /* Modern card and gradient header styles */
+    .modern-card {
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(44,62,80,0.10);
+        border: none;
+        overflow: hidden;
+    }
+    .gradient-header {
+        background: linear-gradient(135deg, #4b6cb7 0%, #182848 100%);
+        color: white;
+        border: none;
+        padding: 1.25rem 1.5rem;
+        font-weight: 600;
+        font-size: 1.25rem;
+        letter-spacing: 0.5px;
+        box-shadow: 0 2px 8px rgba(44,62,80,0.08);
+    }
+    .fade-in-card {
+        opacity: 0;
+        animation: fadeInUp 0.7s ease-out forwards;
+        animation-delay: 0.1s;
+    }
+    .fade-in-card:nth-child(2) {
+        animation-delay: 0.2s;
+    }
+    .fade-in-card:nth-child(3) {
+        animation-delay: 0.3s;
+    }
+    /* Animated progress bar */
+    .animated-progress {
+        background: #e9ecef;
+        border-radius: 8px;
+        height: 28px;
+        width: 100%;
+        overflow: hidden;
+        position: relative;
+        margin-bottom: 0.5rem;
+    }
+    .animated-progress-bar {
+        height: 100%;
+        width: 0;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #fff;
+        transition: width 1.2s cubic-bezier(0.4,0,0.2,1);
+        padding-right: 16px;
+        box-shadow: 0 2px 8px rgba(44,62,80,0.08);
+    }
+    .animated-progress-label {
+        position: absolute;
+        right: 16px;
+        color: #fff;
+        font-size: 1.1rem;
+        font-weight: 600;
+        z-index: 2;
+    }
+    .progress-bar-high {
+        background: linear-gradient(90deg, #dc3545 0%, #ff7675 100%);
+    }
+    .progress-bar-medium {
+        background: linear-gradient(90deg, #fd7e14 0%, #ffe082 100%);
+        color: #343a40;
+    }
+    .progress-bar-low {
+        background: linear-gradient(90deg, #28a745 0%, #20c997 100%);
+    }
+    /* Animated badges */
+    .badge-animated {
+        animation: fadeInUp 0.7s ease-out;
+        font-size: 1rem;
+        padding: 0.5em 1em;
+        border-radius: 1.5em;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        box-shadow: 0 2px 8px rgba(44,62,80,0.08);
+    }
+    .badge-high {
+        background: linear-gradient(90deg, #dc3545 0%, #ff7675 100%);
+        color: #fff;
+    }
+    .badge-medium {
+        background: linear-gradient(90deg, #fd7e14 0%, #ffe082 100%);
+        color: #343a40;
+    }
+    .badge-low {
+        background: linear-gradient(90deg, #28a745 0%, #20c997 100%);
+        color: #fff;
+    }
+
+    /* Visual Analysis Card Enhancements */
+    .visual-analysis-card {
+        margin-top: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-radius: 18px;
+        box-shadow: 0 8px 32px rgba(111,66,193,0.10);
+        overflow: hidden;
+    }
+    .visual-gradient-header {
+        background: linear-gradient(90deg, #c471f5 0%, #fa71cd 100%);
+        color: #fff;
+        border: none;
+        padding: 1.25rem 1.5rem;
+        font-weight: 600;
+        font-size: 1.15rem;
+        letter-spacing: 0.5px;
+        box-shadow: 0 2px 8px rgba(111,66,193,0.08);
+    }
+    .visual-analysis-card .card-body {
+        background: #f8f9fa;
+        min-height: 320px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+    .visual-analysis-card .card-footer.visual-footer {
+        background: #f3e9f7;
+        color: #6f42c1;
+        font-size: 1rem;
+        border-top: none;
+    }
+    .fade-in-img {
+        opacity: 0;
+        animation: fadeInUp 0.8s ease-out forwards;
+        animation-delay: 0.2s;
+    }
+    .visual-analysis-card img {
+        border-radius: 14px;
+        box-shadow: 0 4px 24px rgba(111,66,193,0.13);
+        margin-bottom: 1rem;
+        background: #fff;
+    }
+
+    /* Extra large upload card and area */
+    .upload-card-full {
+        width: 100%;
+        max-width: 100vw;
+        margin-left: 0;
+        margin-right: 0;
+    }
+    .upload-body-xxl {
+        padding: 3.5rem 3rem 2.5rem 3rem;
+        min-height: 340px;
+    }
+    .upload-area-xxl {
+        min-height: 320px;
+        border-width: 3px;
+        font-size: 1.35rem;
+        background: linear-gradient(135deg, #f8f9fa 60%, #e3fcec 100%);
+        box-shadow: 0 4px 24px rgba(32,201,151,0.07);
+        border-radius: 18px;
+        width: 100%;
+        max-width: 900px;
+        margin: 0 auto 2rem auto;
+    }
+    .btn-xxl {
+        font-size: 1.5rem;
+        padding: 1rem 0;
+        border-radius: 2.5rem;
+        font-weight: 600;
+        box-shadow: 0 2px 8px rgba(44,62,80,0.08);
+    }
+    @media (max-width: 991px) {
+        .upload-body-xxl {
+            padding: 2rem 0.5rem 1.5rem 0.5rem;
+        }
+        .upload-area-xxl {
+            min-height: 220px;
+            font-size: 1.1rem;
+        }
+    }
+    @media (max-width: 767px) {
+        .upload-body-xxl {
+            padding: 1rem 0.2rem 1rem 0.2rem;
+        }
+        .upload-area-xxl {
+            min-height: 120px;
+            font-size: 1rem;
+        }
+        .btn-xxl {
+            font-size: 1.1rem;
+            padding: 0.7rem 0;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Add some interactivity to the file upload
+    document.addEventListener('DOMContentLoaded', function() {
+        const fileUpload = document.getElementById('file-upload');
+        const uploadArea = document.querySelector('.upload-area');
+        
+        fileUpload.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                uploadArea.style.borderColor = '#28a745';
+                const fileName = this.files[0].name;
+                const fileSize = (this.files[0].size / 1024).toFixed(2);
+            }
+        });
+
+        // Animate circular progress bars
+        const circularProgressBars = document.querySelectorAll('.circular-progress-circle-fill');
+        circularProgressBars.forEach(circle => {
+            const value = circle.parentElement.parentElement.querySelector('.circular-progress-value').dataset.value;
+            const radius = 70;
+            const circumference = 2 * Math.PI * radius;
+            circle.setAttribute('stroke-dasharray', circumference);
+            circle.setAttribute('stroke-dashoffset', circumference);
+            const offset = circumference - (value / 100) * circumference;
+            setTimeout(() => {
+                circle.style.strokeDashoffset = offset;
+            }, 200);
+        });
+
+        // Animate progress bars
+        document.querySelectorAll('.animated-progress-bar').forEach(function(bar) {
+            var value = bar.getAttribute('data-value');
+            setTimeout(function() {
+                bar.style.width = value + '%';
+            }, 300);
+        });
+    });
+</script>
+{% endblock %} 

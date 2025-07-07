@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-info-circle me-2"></i>About This Tool</h4>
+                </div>
+                <div class="card-body">
+                    <p class="lead">This application uses advanced deep learning to analyze dermatoscopic images and detect potential skin cancer lesions.</p>
+                    <p>The AI model has been trained on thousands of medical-grade images to recognize patterns associated with different types of skin lesions. While this tool can provide valuable insights, it should be used as a supplementary tool and not as a replacement for professional medical advice.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-list-alt me-2"></i>Lesion Types</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for id, lesion in class_mapping.items() %}
+                        <div class="col-md-6 col-lg-4 mb-4">
+                            <div class="card h-100 {% if lesion.risk == 'High Risk' %}border-danger{% elif lesion.risk == 'Medium Risk' %}border-warning{% else %}border-success{% endif %}">
+                                <div class="card-header {% if lesion.risk == 'High Risk' %}bg-danger text-white{% elif lesion.risk == 'Medium Risk' %}bg-warning{% else %}bg-success text-white{% endif %}">
+                                    <h5 class="mb-0">{{ lesion.name }}</h5>
+                                    <span class="badge bg-light text-dark">{{ lesion.code }}</span>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>Risk Level:</strong> <span class="{% if lesion.risk == 'High Risk' %}text-danger{% elif lesion.risk == 'Medium Risk' %}text-warning{% else %}text-success{% endif %}">{{ lesion.risk }}</span></p>
+                                    <p>{{ lesion.description }}</p>
+                                    <p><strong>Key Features:</strong> {{ lesion.features }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-brain me-2"></i>AI Technology</h5>
+                </div>
+                <div class="card-body">
+                    <p>This tool uses a state-of-the-art ResNet50 deep learning model that has been fine-tuned on dermatological images.</p>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">Advanced convolutional neural networks</li>
+                        <li class="list-group-item">Grad-CAM visualization for explainability</li>
+                        <li class="list-group-item">Feature-based analysis of lesion characteristics</li>
+                        <li class="list-group-item">Trained on the HAM10000 dataset of dermatoscopic images</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Important Disclaimer</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <p><strong>This tool is intended for educational purposes only.</strong></p>
+                        <p>The results provided by this application should not be used as a substitute for professional medical advice, diagnosis, or treatment. Always seek the advice of a qualified healthcare provider with any questions you may have regarding a medical condition.</p>
+                    </div>
+                    <p>If you have concerns about a skin lesion, please consult with a dermatologist or other healthcare professional.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-book-medical me-2"></i>References</h5>
+                </div>
+                <div class="card-body">
+                    <ul>
+                        <li>HAM10000 dataset: <a href="https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/DBW86T" target="_blank">Harvard Dataverse</a></li>
+                        <li>Tschandl P, Rosendahl C, Kittler H. The HAM10000 dataset, a large collection of multi-source dermatoscopic images of common pigmented skin lesions. Sci Data. 2018</li>
+                        <li>He K, Zhang X, Ren S, Sun J. Deep Residual Learning for Image Recognition. 2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
